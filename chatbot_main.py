@@ -2,10 +2,10 @@ from sklearn.model_selection import train_test_split
 
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn import preprocessing
-from csv import DictReader
 from restaurant_lookup import find_matching_restaurants, choose_restaurant
 from preference_extraction import get_preferences, find_nearest_option
 from classifiers import fit_baseline1, predict_baseline1, baseline2, test_baseline2, test_lr_classifier, test_tree_classifier, fit_lr_classifier, fit_tree_classifier, predict
+from data_initialization import fetch_sample_dialogs_data, get_category_options, initialize_restaurant_info
 
 # constants
 SYSTEM_UTTERANCES = {'welcome': 'Hello! Welcome to the UU restaurant system. How may I help you?',
@@ -27,41 +27,11 @@ SYSTEM_UTTERANCES = {'welcome': 'Hello! Welcome to the UU restaurant system. How
                      'nomatch': 'Unfortunately we did not find a restaurant matching your description.',
                      'nopref': 'You must first choose your preferred restaurant.'}
 
-# data initialization
-def fetch_data():
-    """Reads input file and splits into utterances and dialog actions"""
-    utterances = []
-    actions = []
-    with open('dialog_acts.dat') as fp:
-        for line in fp:
-            item = line.rstrip()  # Remove trailing characters
-            action = item.split(' ', 1)[0]  # Select the action by choosing the first word
-            utterance = item.replace(action, "")  # Select the utterance by removing the action for the line
-            utterances.append(utterance.lower())
-            actions.append(action.lower())
-    return utterances, actions
-
-def fetch_restaurant_info():
-    with open('restaurant_info.csv', 'r') as read_obj:
-        dict_reader = DictReader(read_obj)
-        restaurant_list = list(dict_reader)
-    return restaurant_list
-
-# will store these in variables to by used in the preference matching
-def initialize_category_options(restaurants_info):
-    food_options = set([d['food'] for d in restaurants_info if 'food' in d])
-    area_options = set([d['area'] for d in restaurants_info if 'area' in d])
-    pricerange_options = set([d['pricerange'] for d in restaurants_info if 'pricerange' in d])
-
-    # area_options.remove('')
-
-    return food_options, area_options, pricerange_options
-
 # chatbot main
 class RestaurantChatbot:
     def __init__(self):
-        self.restaurants_info = fetch_restaurant_info()
-        self.food_options, self.area_options, self.price_options = initialize_category_options(self.restaurants_info)
+        self.restaurants_info = initialize_restaurant_info()
+        self.food_options, self.area_options, self.price_options = get_category_options(self.restaurants_info)
         self.mode = 3
         self.state = None
         self.preference = {'restaurantname': None, 'food': None, 'area': None, 'pricerange': None}
@@ -217,7 +187,7 @@ def dialog_manager(restaurants_info, state, preference, recommendation, alternat
 def main():
 
     print("Starting chatbot...")
-    x_data, y_data = fetch_data()
+    x_data, y_data = fetch_sample_dialogs_data()
 
     # preprocess data
     count_vect = CountVectorizer()
