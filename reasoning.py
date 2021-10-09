@@ -47,7 +47,7 @@ def infer_extra_properties(restaurant_info):
                 restaurant_info["inference_ids"].append(rule["ID"])
                 new_inference_made = True
 
-
+NEGATION_KEYWORD = "not"
 def get_additional(user_input):
     """Extracts what the user is looking for in an additional request. Takes as input the user chat input (user_input)
     and outputs a list of all items requested (additional)."""
@@ -55,7 +55,7 @@ def get_additional(user_input):
     additional_requirement = None
     for keyword in possible_additional_requirements:
         if keyword in user_input:
-            required_value = ("not" in user_input)
+            required_value = NEGATION_KEYWORD not in user_input
             additional_requirement = {"property": keyword, "value": required_value}
             break
     return additional_requirement
