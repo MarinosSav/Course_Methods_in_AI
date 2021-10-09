@@ -2,15 +2,15 @@ from restaurant_lookup import choose_restaurant
 
 INFERENCE_RULES = [{"ID": 1, "antecedent": {"pricerange": "cheap", "good food": True}, "consequent": "busy", "value": True, "description": "a cheap restaurant with good food is busy"},
                    {"ID": 2, "antecedent": {"food": "spanish"}, "consequent": "long stay", "value": True,"description": "Spanish restaurants serve extensive dinners that take a long time to finish"},
-                   {"ID": 3, "antecedent": {"busy": True}, "consequent": "long stay","value": True, "description": "you spend a long time in a busy restaurant (waiting for food)"},
+                   {"ID": 3, "antecedent": {"busy": True}, "consequent": "long stay", "value": True, "description": "you spend a long time in a busy restaurant (waiting for food)"},
                    {"ID": 4, "antecedent": {"long stay": True}, "consequent": "children", "value": False, "description": "spending a long time is not advised when taking children"},
                    # {"ID": 5, "antecedent": {"crowdedness":"busy"}, "consequent": "romantic", "value": False, "description": "a busy restaurant is not romantic"},
                    {"ID": 6, "antecedent": {"long stay": True}, "consequent": "romantic", "value": True,"description": "spending a long time in a restaurant is romantic"}]
 
 
 def add_extra_restaurant_properties(all_restaurant_info):
-    """Goes over the inference rules table and the restaurants data received from the file, uses the reasoning logic to add
-    all extra inferred properties to the restaurants dataset used for the chatbot."""
+    """Goes over the inference rules table and the restaurants data received from the file, uses the reasoning logic to
+    add all extra inferred properties to the restaurants dataset used for the chatbot."""
     for restaurant_info in all_restaurant_info:
         restaurant_info["inferred_properties"] = {}
         restaurant_info["inference_ids"] = []
@@ -64,6 +64,6 @@ def get_additional(user_input):
 def choose_with_extra_reqs(candidates, req):
     """Chooses a restaurant from a list of candidates, according to a match between it's inferred properties
     and an extra user requirement passed as a parameter."""
-    matches = [d for d in candidates if d['inferred_properties'][req['property']]['value'] == req['value']]
-    return choose_restaurant(matches)
-
+    matches = [d for d in candidates if req['property'] in d['inferred_properties'] and
+               d['inferred_properties'][req['property']]['value'] == req['value']]
+    return matches
