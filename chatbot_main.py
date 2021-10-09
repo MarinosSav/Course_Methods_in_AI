@@ -40,7 +40,7 @@ class RestaurantChatbot:
         self.recommendation = []
         self.alternatives = []
         self.request = []
-        self.debug_mode = False
+        self.debug_mode = True
         self.capitalize = False
         self.sleep = 0
         self.previous_state = None
@@ -141,13 +141,13 @@ class RestaurantChatbot:
                     predicted_label = predict(logistic_classifier, count_vect, chat_input)
                 else:
                     predicted_label = predict(tree_classifier, count_vect, chat_input)
-                self.output(("input:", chat_input, "->", predicted_label), "debug")
+                self.output("input: " + str(chat_input) + " -> " + str(predicted_label), "debug")
                 self.previous_state = self.state
                 self.state = self.state_transition(predicted_label, chat_input)
-                self.output(("state:", self.previous_state, "->", self.state), "debug")
+                self.output("state: " + str(self.previous_state) + " -> " + str(self.state), "debug")
                 self.preference, self.recommendation, self.alternatives = self.dialog_manager(self.restaurants_info, self.state, self.preference, self.recommendation, self.alternatives,
                                                                         self.request)
-                self.output(("preference:", self.preference), "debug")
+                self.output("preference: " + str(self.preference), "debug")
 
                 #records.append((new_action, chat_input))
                 #print(new_action)
