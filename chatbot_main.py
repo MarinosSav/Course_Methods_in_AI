@@ -1,16 +1,15 @@
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import CountVectorizer
 from restaurant_lookup import find_matching_restaurants, choose_restaurant
-from preference_extraction import get_preferences, find_nearest_option, set_max_distance
+from preference_extraction import get_preferences, set_max_distance
 from classifiers import predict_baseline1, predict_baseline2, test_baseline2, test_classifier, fit_classifier, predict
 from data_initialization import fetch_sample_dialogs_data, get_category_options, initialize_restaurant_info
 from reasoning import get_additional, choose_with_extra_reqs
-
-# TODO: Add config
-# TODO: Add README
+import time
 
 # outputs to be used by the chatbot
-SYSTEM_UTTERANCES = {'welcome': 'Hello! Welcome to the UU restaurant system. How may I help you?',
+SYSTEM_UTTERANCES = {'init': 'Type /h for help',
+                     'welcome': 'Hello! Welcome to the UU restaurant system. How may I help you?',
                      'preferences': {'food_type': 'What kind of food do you have in mind?',
                                      'area': 'In which area do you please to eat?',
                                      'price_range': 'Do you wish to eat in the cheap, moderate of expensive price range?'},
@@ -37,36 +36,56 @@ class RestaurantChatbot:
         self.food_options, self.area_options, self.price_options = get_category_options(self.restaurants_info)
         self.mode = 3
         self.state = None
-        self.preference = {'restaurantname': None, 'food': None, 'area': None, 'pricerange': None}
+        self.preference = {'restaurantname': None, 'food': None, 'area': None, 'pricerange': None, 'additional': None}
         self.recommendation = []
         self.alternatives = []
         self.request = []
-        self.debug_mode = 1
+        self.debug_mode = False
+        self.capitalize = False
+        self.sleep = 0
         self.previous_state = None
-        print("Chatbot initiated...\nDefault classifier: Logistic Regression\n\n" + SYSTEM_UTTERANCES['welcome'])
+        print("Chatbot initiated...\nDefault classifier: Logistic Regression\n" + SYSTEM_UTTERANCES['init'] + "\n")
+
+    def output(self, text, text_type="dialog"):
+
+        if text_type == "debug":
+            if self.debug_mode:
+                print(text)
+        elif text_type == "dialog":
+            time.sleep(self.sleep)
+            if self.capitalize:
+                print(text.upper())
+            else:
+                print(text)
 
     def configure(self, config, config_value):
 
-        HELP = ""
+        HELP = "Type a sentence to interact with the chatbot. Additional configuration:\n\n/d [on|off] -> Configures" \
+               " debug mode\n/s [b1|b2|c1|c2] -> Switches the classifier used by the chatbot\n/l [distance] -> " \
+               "Changes the maximum Levensthein distance\n/d [on|off] -> Configure system delay after response\n/o" \
+               " [on|off] -> Configure output to all caps\n/e -> Terminate chatbot\n"
 
         try:
             if config == "/h":  # prints list of commands to be used
                 print(HELP)
             if config == "/d":  # debug mode on/off
                 if config_value == "on":
-                    self.debug_mode = 1
+                    self.debug_mode = True
                 elif config_value == "off":
-                    self.debug_mode = 0
+                    self.debug_mode = False
             elif config == "/l":  # change levenshtein distance
                 set_max_distance(config_value)
             elif config == "/c":  # check for correctness check on/off
                 pass
             elif config == "/r":  # allow dialog restarts on/off
                 pass
-            elif config == "/d":  # system delay before response
-                pass
+            elif config == "/delay":  # system delay before response
+                self.sleep = int(config_value)
             elif config == "/o":  # output in all caps on/off
-                pass
+                if config_value == "on":
+                    self.capitalize = True
+                elif config_value == "off":
+                    self.capitalize = False
             elif config == "/s":  # classifier switching
                 if config_value == "b1":
                     self.mode = 1
@@ -81,7 +100,7 @@ class RestaurantChatbot:
                     self.mode = 4
                     print("Switched to tree classifier")
         except:
-            print("Error: Configuration command not recognized")
+            self.output("Configuration command not recognized")
 
     def run_chatbot(self, x_test, y_test, count_vect, baseline1, tree_classifier, logistic_classifier):
         """The core of the chatbot, handles parsing and calling the functions. Takes as input the test utterances
@@ -122,22 +141,19 @@ class RestaurantChatbot:
                     predicted_label = predict(logistic_classifier, count_vect, chat_input)
                 else:
                     predicted_label = predict(tree_classifier, count_vect, chat_input)
-                if self.debug_mode:
-                    print("input:", chat_input, "->", predicted_label)
+                self.output(("input:", chat_input, "->", predicted_label), "debug")
                 self.previous_state = self.state
                 self.state = self.state_transition(predicted_label, chat_input)
-                if self.debug_mode:
-                    print("state:", self.previous_state, "->", self.state)
-                self.preference, self.recommendation, self.alternatives = dialog_manager(self.restaurants_info, self.state, self.preference, self.recommendation, self.alternatives,
+                self.output(("state:", self.previous_state, "->", self.state), "debug")
+                self.preference, self.recommendation, self.alternatives = self.dialog_manager(self.restaurants_info, self.state, self.preference, self.recommendation, self.alternatives,
                                                                         self.request)
-                if self.debug_mode:
-                    print("preference:", self.preference)
+                self.output(("preference:", self.preference), "debug")
 
                 #records.append((new_action, chat_input))
                 #print(new_action)
 
     def state_transition(self, predicted_label, chat_input):
-        """The state transition handler. Returns the next state given the predicted action label (predicted_lable) and
+        """The state transition handler. Returns the next state given the predicted action label (predicted_label) and
         user chat input (chat_input)."""
         if predicted_label == 'inform' or predicted_label == 'reqalts':  # TODO: Make 'Any' an option
             preferences = get_preferences(chat_input, self.food_options, self.area_options, self.price_options)
@@ -148,10 +164,13 @@ class RestaurantChatbot:
             if preferences[2]:
                 self.preference['pricerange'] = preferences[2]
 
+            if self.preference['additional'] is None and self.state == 'request_additional':
+                additional = get_additional(chat_input)
+                if additional:
+                    self.preference['additional'] = additional
+
             if self.preference['food'] and self.preference['area'] and self.preference['pricerange']:
-                if self.previous_state == 'request_additional':
-                    next_state = 'suggest_additional'
-                elif self.previous_state == 'suggest_additional':
+                if self.preference['additional']:
                     next_state = 'restaurant_suggestion'
                 else:
                     next_state = 'request_additional'
@@ -159,12 +178,10 @@ class RestaurantChatbot:
                 next_state = 'request_info'
         elif predicted_label == 'reqmore' or predicted_label == 'deny' or predicted_label == 'negate':
             next_state = 'alt_preferences'
-        elif predicted_label == 'repeat':
-            next_state = self.state # keep current state
+        elif predicted_label == 'repeat' or predicted_label == 'null':
+            next_state = self.state  # keep current state
         elif predicted_label == 'hello':
             next_state = 'welcome'
-        elif predicted_label == 'null':
-            next_state = 'clarify'
         elif predicted_label == 'thankyou' or predicted_label == 'bye':
             next_state = 'goodbye'
         elif predicted_label == 'restart':
@@ -179,6 +196,63 @@ class RestaurantChatbot:
             next_state = 'welcome'
 
         return next_state
+
+    # dialog manager
+    def dialog_manager(self, restaurants_info, state, preference, recommendation, alternatives, chat_input):
+        """Function handling majority of dialog. Takes as input the list with all the restaurant information
+        (restaurant_info), the current state (state) and user input (chat input); updating the preference tuple
+        (preference) as well as the current recommendation list (recommendation) and list of alternative restaurants
+        (alternatives)"""
+
+        if state == 'restaurant_suggestion':
+            matches = find_matching_restaurants(restaurants_info, preference['pricerange'], preference['food'],
+                                                preference['area'])
+            if matches:
+                additional_matches = choose_with_extra_reqs(matches, preference['additional'])
+                if additional_matches:
+                    matches = additional_matches
+
+                restaurant, alternatives = choose_restaurant(matches)
+                preference['restaurantname'] = restaurant
+                self.output(SYSTEM_UTTERANCES['restaurant_suggestion'] % (restaurant, preference['food'], preference['area']))
+            else:
+                self.output(SYSTEM_UTTERANCES['nomatch'])
+        elif state == 'welcome' or state == 'goodbye' or state == 'clarify':
+            self.output(SYSTEM_UTTERANCES[state])
+        elif state == 'alt_preferences':
+            if alternatives:
+                restaurant, alternatives = choose_restaurant(alternatives)
+                self.output(SYSTEM_UTTERANCES['restaurant_suggestion'] % (restaurant['restaurantname'],
+                                                                    restaurant['food'], restaurant['area']))
+            else:
+                self.output(SYSTEM_UTTERANCES['nomatch'])
+        elif state == 'restart_convo':
+            preference = {'restaurantname': None, 'food': None, 'area': None, 'pricerange': None, 'additional': None}
+            recommendation = []
+            alternatives = []
+        elif state == 'provide_info':
+            if not preference['restaurantname']:
+                self.output(SYSTEM_UTTERANCES['nopref'])
+            else:
+                for request in get_request(chat_input):
+                    self.output(SYSTEM_UTTERANCES['provide_info'][request] % (preference['restaurantname'], preference[request]))
+        elif state == 'request_info':
+            if not preference['food']:
+                self.output(SYSTEM_UTTERANCES['preferences']['food_type'])
+            elif not preference['area']:
+                self.output(SYSTEM_UTTERANCES['preferences']['area'])
+            else:
+                self.output(SYSTEM_UTTERANCES['preferences']['price_range'])
+        elif state == 'request_additional':
+            self.output(SYSTEM_UTTERANCES['additional'])
+        elif state == 'confirm' or state == 'negate':
+            # extract preferences  # TODO: Work on Confirm and Negate for Clarify
+            pass
+        else:
+            self.output("Error: state %s not found" % state)
+            pass
+
+        return preference, recommendation, alternatives
 
 
 # potential requests
@@ -198,81 +272,6 @@ def get_request(user_input):
                 requests.append(keyword[0])
 
     return requests
-
-
-# dialog manager
-def dialog_manager(restaurants_info, state, preference, recommendation, alternatives, chat_input):
-    """Function handling majority of dialog. Takes as input the list with all the restaurant information
-    (restaurant_info), the current state (state) and user input (chat input); updating the preference tuple
-    (preference) as well as the current recommendation list (recommendation) and list of alternative restaurants
-    (alternatives)"""
-
-    if state == 'restaurant_suggestion':
-        matches = find_matching_restaurants(restaurants_info, preference['pricerange'], preference['food'], preference['area'])
-        if matches:
-            restaurant, alternatives = choose_restaurant(matches)
-            preference['restaurantname'] = restaurant
-            print(SYSTEM_UTTERANCES['restaurant_suggestion'] % (restaurant, preference['food'], preference['area']))
-        else:
-            print(SYSTEM_UTTERANCES['nomatch'])
-    elif state == 'welcome' or state == 'goodbye' or state == 'clarify':
-        print(SYSTEM_UTTERANCES[state])
-    elif state == 'clarify':
-        print(SYSTEM_UTTERANCES[state] % (find_nearest_option(chat_input)))  # TODO: Extract only the word instead of whole input
-    elif state == 'alt_preferences':
-        if alternatives:
-            restaurant, alternatives = choose_restaurant(alternatives)
-            print(SYSTEM_UTTERANCES['restaurant_suggestion'] % (restaurant['restaurantname'],
-                                                                restaurant['food'], restaurant['area']))
-        else:
-            print(SYSTEM_UTTERANCES['nomatch'])
-    elif state == 'restart_convo':
-        preference = {'restaurantname': None, 'food': None, 'area': None, 'pricerange': None}
-        recommendation = []
-        alternatives = []
-    elif state == 'provide_info':
-        if not preference['restaurantname']:
-            print(SYSTEM_UTTERANCES['nopref'])
-        else:
-            for request in get_request(chat_input):
-                print(SYSTEM_UTTERANCES['provide_info'][request] % (preference['restaurantname'], preference[request]))
-    elif state == 'request_info':
-        if not preference['food']:
-            print(SYSTEM_UTTERANCES['preferences']['food_type'])
-        elif not preference['area']:
-            print(SYSTEM_UTTERANCES['preferences']['area'])
-        else:
-            print(SYSTEM_UTTERANCES['preferences']['price_range'])
-    elif state == 'request_additional':
-        print(SYSTEM_UTTERANCES['additional'])
-    elif state == 'suggest_additional':
-        additional_requirements = get_additional(chat_input)
-        matches = find_matching_restaurants(restaurants_info, preference['pricerange'], preference['food'],
-                                            preference['area'])
-        additional_matches = choose_with_extra_reqs(matches, additional_requirements)
-        if additional_matches:
-            restaurant, alternatives = choose_restaurant(matches)
-            preference['restaurantname'] = restaurant
-            print(SYSTEM_UTTERANCES['restaurant_suggestion'] % (restaurant, preference['food'], preference['area']))
-        else:
-            print(SYSTEM_UTTERANCES['nomatch'])
-    elif state == 'confirm':
-        #extract preferences  # TODO: Work on Confirm and Negate for Clarify
-        pass
-    else:
-        print("Error: state %s not found" % state)
-        pass
-        # print the question depending on preference variable
-        # request = get_request(user_input) -> decide message according to preferences missing
-        # get_preferences(utterance, food_options, area_options, price_options)
-
-        # test_utterance = "I want expensive british food in the whatever"
-        # food_match, area_match, price_match = get_preferences(test_utterance, food_options, area_options, price_options)
-        # print(food_match)
-        # print(area_match)
-        # print(price_match)
-
-    return preference, recommendation, alternatives
 
 
 def main():
