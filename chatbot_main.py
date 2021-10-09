@@ -1,9 +1,10 @@
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import CountVectorizer
 from restaurant_lookup import find_matching_restaurants, choose_restaurant
-from preference_extraction import get_preferences, find_nearest_option
+from preference_extraction import get_preferences, find_nearest_option, set_max_distance
 from classifiers import predict_baseline1, predict_baseline2, test_baseline2, test_classifier, fit_classifier, predict
 from data_initialization import fetch_sample_dialogs_data, get_category_options, initialize_restaurant_info
+from reasoning import get_additional, choose_with_extra_reqs
 
 # TODO: Add config
 # TODO: Add README
@@ -26,7 +27,8 @@ SYSTEM_UTTERANCES = {'welcome': 'Hello! Welcome to the UU restaurant system. How
                      'goodbye': 'Goodbye! And thank you for using the UU restaurant system',
                      'clarify': 'I did not quite understand that, did you mean %s?',
                      'nomatch': 'Unfortunately we did not find a restaurant matching your description.',
-                     'nopref': 'You must first choose your preferred restaurant.'}
+                     'nopref': 'You must first choose your preferred restaurant.',
+                     'additional': 'Do you have any additional requirements?'}
 
 # chatbot class
 class RestaurantChatbot:
@@ -39,7 +41,47 @@ class RestaurantChatbot:
         self.recommendation = []
         self.alternatives = []
         self.request = []
+        self.debug_mode = 1
+        self.previous_state = None
         print("Chatbot initiated...\nDefault classifier: Logistic Regression\n\n" + SYSTEM_UTTERANCES['welcome'])
+
+    def configure(self, config, config_value):
+
+        HELP = ""
+
+        try:
+            if config == "/h":  # prints list of commands to be used
+                print(HELP)
+            if config == "/d":  # debug mode on/off
+                if config_value == "on":
+                    self.debug_mode = 1
+                elif config_value == "off":
+                    self.debug_mode = 0
+            elif config == "/l":  # change levenshtein distance
+                set_max_distance(config_value)
+            elif config == "/c":  # check for correctness check on/off
+                pass
+            elif config == "/r":  # allow dialog restarts on/off
+                pass
+            elif config == "/d":  # system delay before response
+                pass
+            elif config == "/o":  # output in all caps on/off
+                pass
+            elif config == "/s":  # classifier switching
+                if config_value == "b1":
+                    self.mode = 1
+                    print("Switched to baseline 1")
+                elif config_value == "b2":
+                    self.mode = 2
+                    print("Switched to baseline 2")
+                elif config_value == "c1":
+                    self.mode = 3
+                    print("Switched to logistic regression classifier")
+                elif config_value == "c2":
+                    self.mode = 4
+                    print("Switched to tree classifier")
+        except:
+            print("Error: Configuration command not recognized")
 
     def run_chatbot(self, x_test, y_test, count_vect, baseline1, tree_classifier, logistic_classifier):
         """The core of the chatbot, handles parsing and calling the functions. Takes as input the test utterances
@@ -49,33 +91,28 @@ class RestaurantChatbot:
 
         while True:
             chat_input = input(">").lower()
-            if chat_input == "/e":  # exit the program
-                break
-            elif chat_input.split(' ', 1)[0] == "/t":  # test the classifiers
-                test = chat_input.split(' ', 1)[1]
-                if test == "b1":
-                    pass
-                elif test == "b2":
-                    test_baseline2(x_test, y_test)
-                elif test == "c1":
-                    test_classifier(logistic_classifier, x_test, y_test)
-                elif test == "c2":
-                    test_classifier(tree_classifier, x_test, y_test)
+            if chat_input.startswith("/"):
+                line = chat_input.split(' ', 1)
+                if len(line) > 1:
+                    cmd_value = line[1]
                 else:
-                    pass
-            # Classifier switching
-            elif chat_input == "/b1":
-                self.mode = 1
-                print("Switched to baseline 1")
-            elif chat_input == "/b2":
-                self.mode = 2
-                print("Switched to baseline 2")
-            elif chat_input == "/c1":
-                self.mode = 3
-                print("Switched to logistic regression classifier")
-            elif chat_input == "/c2":
-                self.mode = 4
-                print("Switched to tree classifier")
+                    cmd_value = None
+                cmd = line[0]
+                if cmd == "/e":  # exit the program
+                    break
+                elif cmd == "/t":  # test the classifiers
+                    if cmd_value == "b1":
+                        pass  # TODO: Implement for this
+                    elif cmd_value == "b2":
+                        test_baseline2(x_test, y_test)
+                    elif cmd_value == "c1":
+                        test_classifier(logistic_classifier, x_test, y_test)
+                    elif cmd_value == "c2":
+                        test_classifier(tree_classifier, x_test, y_test)
+                    else:
+                        pass
+                else:
+                    self.configure(cmd, cmd_value)
             else:
                 if self.mode == 1:
                     predicted_label = predict_baseline1(baseline1, chat_input)
@@ -85,13 +122,17 @@ class RestaurantChatbot:
                     predicted_label = predict(logistic_classifier, count_vect, chat_input)
                 else:
                     predicted_label = predict(tree_classifier, count_vect, chat_input)
-                print("input:", chat_input, "->", predicted_label)
-                before_state = self.state
+                if self.debug_mode:
+                    print("input:", chat_input, "->", predicted_label)
+                self.previous_state = self.state
                 self.state = self.state_transition(predicted_label, chat_input)
-                print("state:", before_state, "->", self.state)
+                if self.debug_mode:
+                    print("state:", self.previous_state, "->", self.state)
                 self.preference, self.recommendation, self.alternatives = dialog_manager(self.restaurants_info, self.state, self.preference, self.recommendation, self.alternatives,
                                                                         self.request)
-                print("preference:", self.preference)
+                if self.debug_mode:
+                    print("preference:", self.preference)
+
                 #records.append((new_action, chat_input))
                 #print(new_action)
 
@@ -108,7 +149,12 @@ class RestaurantChatbot:
                 self.preference['pricerange'] = preferences[2]
 
             if self.preference['food'] and self.preference['area'] and self.preference['pricerange']:
-                next_state = 'restaurant_suggestion'
+                if self.previous_state == 'request_additional':
+                    next_state = 'suggest_additional'
+                elif self.previous_state == 'suggest_additional':
+                    next_state = 'restaurant_suggestion'
+                else:
+                    next_state = 'request_additional'
             else:
                 next_state = 'request_info'
         elif predicted_label == 'reqmore' or predicted_label == 'deny' or predicted_label == 'negate':
@@ -197,6 +243,19 @@ def dialog_manager(restaurants_info, state, preference, recommendation, alternat
             print(SYSTEM_UTTERANCES['preferences']['area'])
         else:
             print(SYSTEM_UTTERANCES['preferences']['price_range'])
+    elif state == 'request_additional':
+        print(SYSTEM_UTTERANCES['additional'])
+    elif state == 'suggest_additional':
+        additional_requirements = get_additional(chat_input)
+        matches = find_matching_restaurants(restaurants_info, preference['pricerange'], preference['food'],
+                                            preference['area'])
+        additional_matches = choose_with_extra_reqs(matches, additional_requirements)
+        if additional_matches:
+            restaurant, alternatives = choose_restaurant(matches)
+            preference['restaurantname'] = restaurant
+            print(SYSTEM_UTTERANCES['restaurant_suggestion'] % (restaurant, preference['food'], preference['area']))
+        else:
+            print(SYSTEM_UTTERANCES['nomatch'])
     elif state == 'confirm':
         #extract preferences  # TODO: Work on Confirm and Negate for Clarify
         pass
