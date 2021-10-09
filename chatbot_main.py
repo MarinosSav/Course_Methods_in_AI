@@ -1,13 +1,14 @@
 from sklearn.model_selection import train_test_split
-
 from sklearn.feature_extraction.text import CountVectorizer
-from sklearn import preprocessing
 from restaurant_lookup import find_matching_restaurants, choose_restaurant
 from preference_extraction import get_preferences, find_nearest_option
-from classifiers import fit_baseline1, predict_baseline1, baseline2, test_baseline2, test_lr_classifier, test_tree_classifier, fit_lr_classifier, fit_tree_classifier, predict
+from classifiers import predict_baseline1, predict_baseline2, test_baseline2, test_classifier, fit_classifier, predict
 from data_initialization import fetch_sample_dialogs_data, get_category_options, initialize_restaurant_info
 
-# constants
+# TODO: Add config
+# TODO: Add README
+
+# outputs to be used by the chatbot
 SYSTEM_UTTERANCES = {'welcome': 'Hello! Welcome to the UU restaurant system. How may I help you?',
                      'preferences': {'food_type': 'What kind of food do you have in mind?',
                                      'area': 'In which area do you please to eat?',
@@ -27,7 +28,7 @@ SYSTEM_UTTERANCES = {'welcome': 'Hello! Welcome to the UU restaurant system. How
                      'nomatch': 'Unfortunately we did not find a restaurant matching your description.',
                      'nopref': 'You must first choose your preferred restaurant.'}
 
-# chatbot main
+# chatbot class
 class RestaurantChatbot:
     def __init__(self):
         self.restaurants_info = initialize_restaurant_info()
@@ -40,23 +41,29 @@ class RestaurantChatbot:
         self.request = []
         print("Chatbot initiated...\nDefault classifier: Logistic Regression\n\n" + SYSTEM_UTTERANCES['welcome'])
 
-    def run_chatbot(self, x_test, y_test, count_vect, label_encoder, baseline1, tree_classifier, logistic_classifier):
+    def run_chatbot(self, x_test, y_test, count_vect, baseline1, tree_classifier, logistic_classifier):
+        """The core of the chatbot, handles parsing and calling the functions. Takes as input the test utterances
+        (x_test), the test action labels (y_test), the fitted vectorizer (count_vect) as well as all the classifier
+        models for the dummy (baseline1), tree (tree_classifier) and logistic regression (logistic_classifier)
+        classifiers."""
+
         while True:
             chat_input = input(">").lower()
-            if chat_input == "/e":
+            if chat_input == "/e":  # exit the program
                 break
-            elif chat_input.split(' ', 1)[0] == "/t":
+            elif chat_input.split(' ', 1)[0] == "/t":  # test the classifiers
                 test = chat_input.split(' ', 1)[1]
                 if test == "b1":
                     pass
                 elif test == "b2":
                     test_baseline2(x_test, y_test)
                 elif test == "c1":
-                    test_lr_classifier(logistic_classifier, x_test, y_test)
+                    test_classifier(logistic_classifier, x_test, y_test)
                 elif test == "c2":
-                    test_tree_classifier(tree_classifier, x_test, y_test, label_encoder)
+                    test_classifier(tree_classifier, x_test, y_test)
                 else:
                     pass
+            # Classifier switching
             elif chat_input == "/b1":
                 self.mode = 1
                 print("Switched to baseline 1")
@@ -73,7 +80,7 @@ class RestaurantChatbot:
                 if self.mode == 1:
                     predicted_label = predict_baseline1(baseline1, chat_input)
                 elif self.mode == 2:
-                    predicted_label = baseline2(chat_input)
+                    predicted_label = predict_baseline2(chat_input)
                 elif self.mode == 3:
                     predicted_label = predict(logistic_classifier, count_vect, chat_input)
                 else:
@@ -89,7 +96,9 @@ class RestaurantChatbot:
                 #print(new_action)
 
     def state_transition(self, predicted_label, chat_input):
-        if predicted_label == 'inform' or predicted_label == 'reqalts':
+        """The state transition handler. Returns the next state given the predicted action label (predicted_lable) and
+        user chat input (chat_input)."""
+        if predicted_label == 'inform' or predicted_label == 'reqalts':  # TODO: Make 'Any' an option
             preferences = get_preferences(chat_input, self.food_options, self.area_options, self.price_options)
             if preferences[0]:
                 self.preference['food'] = preferences[0]
@@ -125,11 +134,33 @@ class RestaurantChatbot:
 
         return next_state
 
+
+# potential requests
+REQUESTS = [("address", ["address"]),
+            ("tel_nr", ["phone number", "number", "telephone number"]),
+            ("food", ["type of food", "food"]),
+            ("postal_code", ["post code", "postcode", "postal code"]),
+            ("price", ["price range", "how much", "price"]),
+            ("area", ["area", "located", "part of town", "where"])]
 def get_request(user_input):
-    return ['address', 'price']
+    """Extracts what the user is looking for in a request e.g. phone number, address. Takes as input the user chat input
+    (user_input) and outputs a list of all items requested (requests)."""
+    requests = []
+    for request in REQUESTS:
+        for keyword in request[1]:
+            if keyword in user_input:
+                requests.append(keyword[0])
+
+    return requests
+
 
 # dialog manager
 def dialog_manager(restaurants_info, state, preference, recommendation, alternatives, chat_input):
+    """Function handling majority of dialog. Takes as input the list with all the restaurant information
+    (restaurant_info), the current state (state) and user input (chat input); updating the preference tuple
+    (preference) as well as the current recommendation list (recommendation) and list of alternative restaurants
+    (alternatives)"""
+
     if state == 'restaurant_suggestion':
         matches = find_matching_restaurants(restaurants_info, preference['pricerange'], preference['food'], preference['area'])
         if matches:
@@ -167,7 +198,7 @@ def dialog_manager(restaurants_info, state, preference, recommendation, alternat
         else:
             print(SYSTEM_UTTERANCES['preferences']['price_range'])
     elif state == 'confirm':
-        #extract preferences
+        #extract preferences  # TODO: Work on Confirm and Negate for Clarify
         pass
     else:
         print("Error: state %s not found" % state)
@@ -184,30 +215,27 @@ def dialog_manager(restaurants_info, state, preference, recommendation, alternat
 
     return preference, recommendation, alternatives
 
+
 def main():
 
-    print("Starting chatbot...")
+    print("Initiating...")
     x_data, y_data = fetch_sample_dialogs_data()
 
     # preprocess data
-    count_vect = CountVectorizer()
+    count_vect = CountVectorizer()  #stop_words = 'english'
     x_bag = count_vect.fit_transform(x_data)
 
+    # split data into training and testing data
     x_train, x_test, y_train, y_test = train_test_split(x_bag, y_data, test_size=0.15)
 
-    # encode labels for decision tree classifier
-    le = preprocessing.LabelEncoder()
-    le.fit(y_data)
-    encoded_y_train = le.transform(y_train)
-    baseline1 = fit_baseline1(x_train, y_train)
+    # create classifiers
+    baseline1 = fit_classifier(x_train, y_train)
+    tree_classifier = fit_classifier(x_train, y_train, "tree")
+    logistic_classifier = fit_classifier(x_train, y_train, "lr")
 
-    # create and test classifiers
-    tree_classifier = fit_tree_classifier(x_train, y_train)
-    #test_tree_classifier(tree_classifer, x_test, y_test, le)
-    logistic_classifier = fit_lr_classifier(x_train, y_train)
-    #test_lr_classifier(logistic_classifier, x_test, y_test)
-
+    # initiate and run the chatbot
     chatbot = RestaurantChatbot()
-    chatbot.run_chatbot(x_test, y_test, count_vect, le, baseline1, tree_classifier, logistic_classifier)
+    chatbot.run_chatbot(x_test, y_test, count_vect, baseline1, tree_classifier, logistic_classifier)
+
 
 main()
