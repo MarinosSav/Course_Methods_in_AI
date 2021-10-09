@@ -17,6 +17,7 @@ def find_nearest_option(word, options):
         distance = nltk.edit_distance(word, option)
         if distance <= MAX_ALLOWED_DISTANCE:
             if distance < current_best_distance:
+                current_best_distance = distance
                 closest_options = [option]
             elif distance == current_best_distance:
                 closest_options.append(option)
