@@ -9,6 +9,11 @@ PRICE_PATTERN = r"(\w+)(\spriced|\srestaurant)"
 MAX_ALLOWED_DISTANCE = 3  # maximum levenshtein distance
 
 
+def set_max_distance(distance):
+    global MAX_ALLOWED_DISTANCE
+    MAX_ALLOWED_DISTANCE = distance
+
+
 def find_nearest_option(word, options):
     """Returns the closest distance Levenshtein word (word) from a set of options (options)."""
     closest_options = []
@@ -42,13 +47,12 @@ def get_preferences(utterance, food_options, area_options, price_options):
     else:
         price_match = check_pattern_matches(utterance, PRICE_PATTERN, price_options)
 
-
     return food_match, area_match, price_match
 
 
 def check_pattern_matches(utterance, pattern, options):
     """Checks if a given word pattern (pattern) is detected within a utterance (utterance), before attempting to find
-    the closes possible word. If no word is found None is returned."""
+    the closest possible word. If no word is found None is returned."""
     match = re.search(pattern, utterance)
     if match:
         word = match[1]
