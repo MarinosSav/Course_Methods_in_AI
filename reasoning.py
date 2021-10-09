@@ -9,14 +9,17 @@ INFERENCE_RULES = [{"ID": 1, "antecedent": {"pricerange": "cheap", "good food": 
 
 
 def add_extra_restaurant_properties(all_restaurant_info):
+    """Goes over the inference rules table and the restaurants data received from the file, uses the reasoning logic to add
+    all extra inferred properties to the restaurants dataset used for the chatbot."""
     for restaurant_info in all_restaurant_info:
-        restaurant_info["extra_properties"] = {}
-        find_new_inferences(restaurant_info)
+        restaurant_info["inferred_properties"] = {}
+        restaurant_info["inference_ids"] = []
+        infer_extra_properties(restaurant_info)
     return all_restaurant_info
 
 
-# this function might be replaced if i find a nicer equivalent for Ruby ".all" in python ;)
 def check_inference_rule_match(restaurant_info, antecedent):
+    """checks for a match between a specific inference rule and a restaurant."""
     rule_matches = True
     for key, value in antecedent.items():
         if restaurant_info[key] != value:
@@ -25,35 +28,42 @@ def check_inference_rule_match(restaurant_info, antecedent):
     return rule_matches
 
 
-def consequent_already_added(restaurant_info, rule):
-    return (rule["consequent"] in restaurant_info and restaurant_info[rule["consequent"]] == rule["value"])
+# def consequent_already_added(restaurant_info, rule):
+#     return (rule["consequent"] in restaurant_info and restaurant_info[rule["consequent"]] == rule["value"])
 
 
-def find_new_inferences(restaurant_info):
+def infer_extra_properties(restaurant_info):
+    """Using the inference rules table, reasons all the extra properties for a specific restaurant."""
     new_inference_made = True  # for first entry into the loop
     # need to keep checking for inferences every time a new one is made/found, as it could lead to new consequents/inferences
     while new_inference_made:
         new_inference_made = False
         for rule in INFERENCE_RULES:
-            # if restaurant matches antecedent logic and consequent isn't already in the extra properties
-            if check_inference_rule_match(restaurant_info, rule["antecedent"]) and not consequent_already_added(restaurant_info, rule):
-                restaurant_info["extra_properties"] = {"property": rule["consequent"], "value": rule["value"], "description": rule["description"]}
+            # if restaurant matches antecedent logic and this inference rule hasn't already been added
+            # (necessary to avoid endless loops of two rules setting the same consequent of another to true/false alternatively)
+            if check_inference_rule_match(restaurant_info, rule["antecedent"]) and not rule["ID"] in restaurant_info["inference_ids"]:
+                restaurant_info["inferred_properties"][rule["consequent"]] = {"value": rule["value"], "description": rule["description"]}
                 restaurant_info[rule["consequent"]] = rule["value"]
+                restaurant_info["inference_ids"].append(rule["ID"])
                 new_inference_made = True
 
 
 def get_additional(user_input):
     """Extracts what the user is looking for in an additional request. Takes as input the user chat input (user_input)
     and outputs a list of all items requested (additional)."""
-    additional = []
-    for keyword, _ in antecedent.items():
+    possible_additional_requirements = set([d['consequent'] for d in INFERENCE_RULES if 'consequent' in d])
+    additional_requirement = None
+    for keyword in possible_additional_requirements:
         if keyword in user_input:
-            additional.append(keyword)
-
-    return additional
+            required_value = ("not" in user_input)
+            additional_requirement = {"property": keyword, "value": required_value}
+            break
+    return additional_requirement
 
 
 def choose_with_extra_reqs(candidates, req):
-    matches = [d for d in candidates if d['extra_properties'][req['property']] == req['value']]
+    """Chooses a restaurant from a list of candidates, according to a match between it's inferred properties
+    and an extra user requirement passed as a parameter."""
+    matches = [d for d in candidates if d['inferred_properties'][req['property']]['value'] == req['value']]
     return choose_restaurant(matches)
 

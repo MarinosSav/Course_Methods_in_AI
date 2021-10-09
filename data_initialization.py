@@ -2,7 +2,7 @@ from csv import DictReader
 from reasoning import add_extra_restaurant_properties
 
 # stored files
-RESTAURANT_INFO_FILENAME = 'restaurant_info.csv'
+RESTAURANT_INFO_FILENAME = 'restaurant_info_new.csv'
 DIALOG_DATASET_FILENAME = 'dialog_acts.dat'
 
 
