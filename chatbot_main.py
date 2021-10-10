@@ -14,6 +14,7 @@ SYSTEM_UTTERANCES = {'init': 'Type /h for help',
                                      'area': 'In which area do you please to eat?',
                                      'price_range': 'Do you wish to eat in the cheap, moderate of expensive price range?'},
                      'restaurant_suggestion': '%s is a fantastic %s restaurant in the %s of town.',
+                     'restaurant_suggestion_reason': 'it is %s because %s.',
                      'provide_info': {'address': 'The address of %s is %s',
                                       'tel_nr': 'The telephone number of %s is %s',
                                       'postal_code': 'The postalcode of %s is %s',
@@ -177,7 +178,10 @@ class RestaurantChatbot:
             else:
                 next_state = 'request_info'
         elif predicted_label == 'reqmore' or predicted_label == 'deny' or predicted_label == 'negate':
-            next_state = 'alt_preferences'
+            if self.state == 'request_additional' and predicted_label == 'negate': 
+                next_state = 'restaurant_suggestion'
+            else:
+                next_state = 'alt_preferences'
         elif predicted_label == 'repeat' or predicted_label == 'null':
             next_state = self.state  # keep current state
         elif predicted_label == 'hello':
@@ -208,13 +212,15 @@ class RestaurantChatbot:
             matches = find_matching_restaurants(restaurants_info, preference['pricerange'], preference['food'],
                                                 preference['area'])
             if matches:
-                additional_matches = choose_with_extra_reqs(matches, preference['additional'])
-                if additional_matches:
+                if preference['additional']:
+                    additional_matches = choose_with_extra_reqs(matches, preference['additional'])
                     matches = additional_matches
-
+            if matches:
                 restaurant, alternatives = choose_restaurant(matches)
-                preference['restaurantname'] = restaurant
-                self.output(SYSTEM_UTTERANCES['restaurant_suggestion'] % (restaurant, preference['food'], preference['area']))
+                preference['restaurantname'] = restaurant['restaurantname']
+                self.output(SYSTEM_UTTERANCES['restaurant_suggestion'] % (preference['restaurantname'], preference['food'], preference['area']))
+                if preference['additional']:
+                    self.output(self.build_reasoning_description(preference, restaurant))              
             else:
                 self.output(SYSTEM_UTTERANCES['nomatch'])
         elif state == 'welcome' or state == 'goodbye' or state == 'clarify':
@@ -224,6 +230,8 @@ class RestaurantChatbot:
                 restaurant, alternatives = choose_restaurant(alternatives)
                 self.output(SYSTEM_UTTERANCES['restaurant_suggestion'] % (restaurant['restaurantname'],
                                                                     restaurant['food'], restaurant['area']))
+                if preference['additional']:
+                    self.output(self.build_reasoning_description(preference, restaurant))
             else:
                 self.output(SYSTEM_UTTERANCES['nomatch'])
         elif state == 'restart_convo':
@@ -254,7 +262,11 @@ class RestaurantChatbot:
 
         return preference, recommendation, alternatives
 
-
+    def build_reasoning_description(self, preference, restaurant):
+        additional_property_text = "{prefix}{property}".format(prefix="" if preference['additional']['value'] else "not ",
+                                                               property = preference['additional']['property'])
+        reasoning_description = restaurant["inferred_properties"][preference['additional']['property']]['description']
+        return SYSTEM_UTTERANCES['restaurant_suggestion_reason'] % (additional_property_text, reasoning_description)
 # potential requests
 REQUESTS = [("address", ["address"]),
             ("tel_nr", ["phone number", "number", "telephone number"]),
