@@ -21,4 +21,4 @@ def choose_restaurant(matches):
     alternatives = matches.copy()
     alternatives.remove(selected_restaurant)
 
-    return selected_restaurant['restaurantname'], alternatives
+    return selected_restaurant, alternatives
