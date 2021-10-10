@@ -3,7 +3,9 @@
 import random
 
 def find_matching_restaurants(restaurants_data, pricerange, food, area):
-
+    """Creates a list of restaurants that match given criteria. Receives as input the list of all restaurants
+    (restaurants_data) and the criteria for the price range (pricerange), food choice (food) and area (area); outputs
+    a list of potential matches (matches)"""
     matches = []
     for restaurant in restaurants_data:
         if (    (pricerange == "any" or pricerange == restaurant['pricerange'])
@@ -16,7 +18,8 @@ def find_matching_restaurants(restaurants_data, pricerange, food, area):
 
 
 def choose_restaurant(matches):
-
+    """Chooses one restaurant out of a list of potential restaurants (matches); outputs the restaurant
+    (selected_restaurant) as well as the remaining restaurants in a separate list (alternatives)."""
     selected_restaurant = random.choice(matches)
     alternatives = matches.copy()
     alternatives.remove(selected_restaurant)

@@ -61,9 +61,9 @@ class RestaurantChatbot:
 
     def configure(self, config, config_value):
 
-        HELP = "Type a sentence to interact with the chatbot. Additional configuration:\n\n/d [on|off] -> Configures" \
+        HELP = "Type a sentence to interact with the chatbot. Commands and configurations:\n\n/d [on|off] -> Configures" \
                " debug mode\n/s [b1|b2|c1|c2] -> Switches the classifier used by the chatbot\n/l [distance] -> " \
-               "Changes the maximum Levensthein distance\n/d [on|off] -> Configure system delay after response\n/o" \
+               "Changes the maximum Levensthein distance\n/delay [on|off] -> Configure system delay after response\n/o" \
                " [on|off] -> Configure output to all caps\n/e -> Terminate chatbot\n"
 
         try:
@@ -76,10 +76,6 @@ class RestaurantChatbot:
                     self.debug_mode = False
             elif config == "/l":  # change levenshtein distance
                 set_max_distance(config_value)
-            elif config == "/c":  # check for correctness check on/off
-                pass
-            elif config == "/r":  # allow dialog restarts on/off
-                pass
             elif config == "/delay":  # system delay before response
                 self.sleep = int(config_value)
             elif config == "/o":  # output in all caps on/off
@@ -122,7 +118,7 @@ class RestaurantChatbot:
                     break
                 elif cmd == "/t":  # test the classifiers
                     if cmd_value == "b1":
-                        pass  # TODO: Implement for this
+                        pass
                     elif cmd_value == "b2":
                         test_baseline2(x_test, y_test)
                     elif cmd_value == "c1":
@@ -156,7 +152,7 @@ class RestaurantChatbot:
     def state_transition(self, predicted_label, chat_input):
         """The state transition handler. Returns the next state given the predicted action label (predicted_label) and
         user chat input (chat_input)."""
-        if predicted_label == 'inform' or predicted_label == 'reqalts':  # TODO: Make 'Any' an option
+        if predicted_label == 'inform' or predicted_label == 'reqalts':
             preferences = get_preferences(chat_input, self.food_options, self.area_options, self.price_options)
             if preferences[0]:
                 self.preference['food'] = preferences[0]
@@ -254,7 +250,7 @@ class RestaurantChatbot:
         elif state == 'request_additional':
             self.output(SYSTEM_UTTERANCES['additional'])
         elif state == 'confirm' or state == 'negate':
-            # extract preferences  # TODO: Work on Confirm and Negate for Clarify
+            # extract preferences
             pass
         else:
             self.output("Error: state %s not found" % state)
@@ -270,7 +266,7 @@ class RestaurantChatbot:
         else:
             property_text = property
         full_property_text = "{prefix}{property}".format(prefix="" if preference['additional']['value'] else "not ",
-                                                               property = property_text)
+                                                         property=property_text)
         reasoning_description = restaurant["inferred_properties"][preference['additional']['property']]['description']
         return SYSTEM_UTTERANCES['restaurant_suggestion_reason'] % (full_property_text, reasoning_description)
 
@@ -299,7 +295,7 @@ def main():
     x_data, y_data = fetch_sample_dialogs_data()
 
     # preprocess data
-    count_vect = CountVectorizer()  #stop_words = 'english'
+    count_vect = CountVectorizer()
     x_bag = count_vect.fit_transform(x_data)
 
     # split data into training and testing data

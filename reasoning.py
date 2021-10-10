@@ -19,13 +19,14 @@ def add_extra_restaurant_properties(all_restaurant_info):
 
 
 def check_inference_rule_match(restaurant_info, antecedent):
-    """checks for a match between a specific inference rule and a restaurant."""
+    """Checks for a match between a specific inference rule and a restaurant."""
     rule_matches = True
     for key, value in antecedent.items():
         if str(restaurant_info[key]).lower() != str(value).lower():
             rule_matches = False
             break
     return rule_matches
+
 
 def infer_extra_properties(restaurant_info):
     """Using the inference rules table, reasons all the extra properties for a specific restaurant."""
@@ -41,6 +42,7 @@ def infer_extra_properties(restaurant_info):
                 restaurant_info[rule["consequent"]] = rule["value"]
                 restaurant_info["inference_ids"].append(rule["ID"])
                 new_inference_made = True
+
 
 NEGATION_KEYWORD = "not"
 def get_additional(user_input):

@@ -37,7 +37,7 @@ def predict_baseline2(chat_input):
                 return rule[0]
 
     # default return value, for all expressions not found in the rules list.
-    # since inform is broad we test for the more specific cases before returning
+    # since inform is broad we test for the more specific cases before returning as a backup option
     return "inform"
 
 
