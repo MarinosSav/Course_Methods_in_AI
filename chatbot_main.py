@@ -218,7 +218,7 @@ class RestaurantChatbot:
             if matches:
                 restaurant, alternatives = choose_restaurant(matches)
                 preference['restaurantname'] = restaurant['restaurantname']
-                self.output(SYSTEM_UTTERANCES['restaurant_suggestion'] % (preference['restaurantname'], preference['food'], preference['area']))
+                self.output(SYSTEM_UTTERANCES['restaurant_suggestion'] % (restaurant['restaurantname'], restaurant['food'], restaurant['area']))
                 if preference['additional']:
                     self.output(self.build_reasoning_description(preference, restaurant))              
             else:
