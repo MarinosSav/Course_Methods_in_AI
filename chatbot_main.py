@@ -263,10 +263,17 @@ class RestaurantChatbot:
         return preference, recommendation, alternatives
 
     def build_reasoning_description(self, preference, restaurant):
-        additional_property_text = "{prefix}{property}".format(prefix="" if preference['additional']['value'] else "not ",
-                                                               property = preference['additional']['property'])
+        property = preference['additional']['property']
+        
+        if property == "children":
+            property_text = "suitable for children"
+        else:
+            property_text = property
+        full_property_text = "{prefix}{property}".format(prefix="" if preference['additional']['value'] else "not ",
+                                                               property = property_text)
         reasoning_description = restaurant["inferred_properties"][preference['additional']['property']]['description']
-        return SYSTEM_UTTERANCES['restaurant_suggestion_reason'] % (additional_property_text, reasoning_description)
+        return SYSTEM_UTTERANCES['restaurant_suggestion_reason'] % (full_property_text, reasoning_description)
+
 # potential requests
 REQUESTS = [("address", ["address"]),
             ("tel_nr", ["phone number", "number", "telephone number"]),

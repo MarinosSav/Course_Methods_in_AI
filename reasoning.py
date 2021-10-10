@@ -22,15 +22,10 @@ def check_inference_rule_match(restaurant_info, antecedent):
     """checks for a match between a specific inference rule and a restaurant."""
     rule_matches = True
     for key, value in antecedent.items():
-        if restaurant_info[key] != value:
+        if str(restaurant_info[key]).lower() != str(value).lower():
             rule_matches = False
             break
     return rule_matches
-
-
-# def consequent_already_added(restaurant_info, rule):
-#     return (rule["consequent"] in restaurant_info and restaurant_info[rule["consequent"]] == rule["value"])
-
 
 def infer_extra_properties(restaurant_info):
     """Using the inference rules table, reasons all the extra properties for a specific restaurant."""
