@@ -9,11 +9,14 @@ import time
 
 # outputs to be used by the chatbot
 SYSTEM_UTTERANCES = {'init': 'Type /h for help',
+                     'ask_name': 'Hello, what is your name?',
+                     'welcome_name': 'Hello %s! Welcome to the UU restaurant system. How may I help you?',
                      'welcome': 'Hello! Welcome to the UU restaurant system. How may I help you?',
                      'preferences': {'food_type': 'What kind of food do you have in mind?',
                                      'area': 'In which area do you please to eat?',
                                      'price_range': 'Do you wish to eat in the cheap, moderate of expensive price range?'},
                      'restaurant_suggestion': '%s is a fantastic %s restaurant in the %s of town.',
+                     'suggest_name': '%s I found a restaurant that fits your criteria, %s is a fantastic %s restaurant in the %s of town.',
                      'restaurant_suggestion_reason': 'it is %s because %s.',
                      'provide_info': {'address': 'The address of %s is %s',
                                       'tel_nr': 'The telephone number of %s is %s',
@@ -25,6 +28,7 @@ SYSTEM_UTTERANCES = {'init': 'Type /h for help',
                      'alternative': 'Would you like to eat at %s in the %s of town, their prices are %s',
                      'alt_preferences': 'There are no restaurants available with your preferences, would you like to change them?',
                      'goodbye': 'Goodbye! And thank you for using the UU restaurant system',
+                     'goodbye_name': 'Goodbye %s! And thank you for using the UU restaurant system',
                      'clarify': 'I did not quite understand that, did you mean %s?',
                      'nomatch': 'Unfortunately we did not find a restaurant matching your description.',
                      'nopref': 'You must first choose your preferred restaurant.',
@@ -41,10 +45,12 @@ class RestaurantChatbot:
         self.recommendation = []
         self.alternatives = []
         self.request = []
-        self.debug_mode = True
+        self.debug_mode = False
         self.capitalize = False
         self.sleep = 0
         self.previous_state = None
+        self.personalize = False
+        self.user_name = None
         print("Chatbot initiated...\nDefault classifier: Logistic Regression\n" + SYSTEM_UTTERANCES['init'] + "\n")
 
     def output(self, text, text_type="dialog"):
@@ -69,6 +75,8 @@ class RestaurantChatbot:
         try:
             if config == "/h":  # prints list of commands to be used
                 print(HELP)
+            if config == "/p":
+                self.personalize = True
             if config == "/d":  # debug mode on/off
                 if config_value == "on":
                     self.debug_mode = True
@@ -152,7 +160,15 @@ class RestaurantChatbot:
     def state_transition(self, predicted_label, chat_input):
         """The state transition handler. Returns the next state given the predicted action label (predicted_label) and
         user chat input (chat_input)."""
-        if predicted_label == 'inform' or predicted_label == 'reqalts':
+        if self.state is None:
+            if self.personalize:
+                next_state = 'ask_name'
+            else:
+                next_state = 'welcome'
+        elif self.previous_state == 'ask_name':
+            self.user_name = chat_input.title()
+            next_state = 'welcome_name'
+        elif predicted_label == 'inform' or predicted_label == 'reqalts':
             preferences = get_preferences(chat_input, self.food_options, self.area_options, self.price_options)
             if preferences[0]:
                 self.preference['food'] = preferences[0]
@@ -160,12 +176,10 @@ class RestaurantChatbot:
                 self.preference['area'] = preferences[1]
             if preferences[2]:
                 self.preference['pricerange'] = preferences[2]
-
             if self.preference['additional'] is None and self.state == 'request_additional':
                 additional = get_additional(chat_input)
                 if additional:
                     self.preference['additional'] = additional
-
             if self.preference['food'] and self.preference['area'] and self.preference['pricerange']:
                 if self.preference['additional']:
                     next_state = 'restaurant_suggestion'
@@ -183,7 +197,10 @@ class RestaurantChatbot:
         elif predicted_label == 'hello':
             next_state = 'welcome'
         elif predicted_label == 'thankyou' or predicted_label == 'bye':
-            next_state = 'goodbye'
+            if self.personalize:
+                next_state = 'goodbye_name'
+            else:
+                next_state = 'goodbye'
         elif predicted_label == 'restart':
             next_state = 'restart_convo'
         elif predicted_label == 'request':
@@ -219,8 +236,10 @@ class RestaurantChatbot:
                     self.output(self.build_reasoning_description(preference, restaurant))              
             else:
                 self.output(SYSTEM_UTTERANCES['nomatch'])
-        elif state == 'welcome' or state == 'goodbye' or state == 'clarify':
+        elif state == 'welcome' or state == 'goodbye' or state == 'clarify' or state == 'ask_name':
             self.output(SYSTEM_UTTERANCES[state])
+        elif state == 'welcome_name' or state == 'goodbye_name':
+            self.output(SYSTEM_UTTERANCES[state] % self.user_name)
         elif state == 'alt_preferences':
             if alternatives:
                 restaurant, alternatives = choose_restaurant(alternatives)
