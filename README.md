@@ -1,5 +1,3 @@
-### Restaurant Recommender System
-
 ![](/images/0001.jpg)
 ![](/images/0002.jpg)
 ![](/images/0003.jpg)
